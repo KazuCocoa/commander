@@ -75,6 +75,27 @@ fun connectedAdbDevices(): Observable<Set<AdbDevice>> = process(listOf(adb, "dev
 
 fun AdbDevice.log(message: String) = com.gojuno.commander.os.log("[$id] $message")
 
+fun AdbDevice.isAppInstalled(packageName: String): Observable<Boolean> {
+    val adbDevice = this
+    val installedPackages = process(
+        commandAndArgs = listOf(adb, "-s", adbDevice.id, "shell", "pm", "list", "packages", packageName),
+        unbufferedOutput = true
+    )
+
+    return installedPackages
+        .ofType(Notification.Exit::class.java)
+        .map { it.output.readText() }
+        .map { packageNames ->
+            val installedPackageRegex = "^package:$packageName$".toRegex(RegexOption.MULTILINE)
+            val result = installedPackageRegex.find(packageNames)
+
+            when (result) {
+                null -> false
+                else -> true
+            }
+        }
+}
+
 fun AdbDevice.installApk(pathToApk: String, timeout: Pair<Int, TimeUnit> = 2 to MINUTES): Observable<Unit> {
     val adbDevice = this
     val installApk = process(
